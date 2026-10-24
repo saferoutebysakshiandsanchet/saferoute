@@ -1,0 +1,6 @@
+{
+  "name": "SafeRoute",
+  "description": "Community-driven safety navigation layer with Leaflet OSM, administrative hazard moderation, and ESP32 IoT edge telemetry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
