@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID matching auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "Avatar photo URL" },
+        "role": { "type": "string", "enum": ["admin", "citizen", "responder"], "description": "Access control role" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of account creation" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Hazard": {
+      "title": "Hazard",
+      "description": "Civic safety hazard or real-time alert reported by citizen, IoT, or weather service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique hazard ID" },
+        "type": { 
+          "type": "string", 
+          "enum": ["lighting", "waterlogging", "dark_alley", "pothole", "construction", "unsafe_crowd", "weather_alert"],
+          "description": "Classification of the hazard"
+        },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Hazard severity level" },
+        "title": { "type": "string", "description": "Short descriptive title" },
+        "description": { "type": "string", "description": "Details about the hazard" },
+        "lat": { "type": "number", "description": "Latitude coordinate" },
+        "lng": { "type": "number", "description": "Longitude coordinate" },
+        "city": { "type": "string", "description": "City or metropolitan region" },
+        "verified": { "type": "boolean", "description": "Whether verified by admin or IoT" },
+        "verifiedBy": { "type": "string", "description": "Verifier ID or method" },
+        "upvotes": { "type": "number", "description": "Community confirmation count" },
+        "reportedBy": { "type": "string", "description": "UID of reporter or 'system'/'weather_service'" },
+        "reporterName": { "type": "string", "description": "Display name of reporter" },
+        "reportedAt": { "type": "string", "description": "ISO timestamp of report" },
+        "source": { "type": "string", "description": "Source: 'citizen', 'iot_sensor', or 'weather_api'" },
+        "expiresAt": { "type": "string", "description": "Optional ISO expiry timestamp for temporary alerts" }
+      },
+      "required": ["id", "type", "severity", "title", "lat", "lng", "city", "reportedBy", "reportedAt"]
+    },
+    "Verification": {
+      "title": "Verification",
+      "description": "Verification log entry for an existing hazard",
+      "type": "object",
+      "properties": {
+        "hazardId": { "type": "string", "description": "Target hazard ID" },
+        "verifiedBy": { "type": "string", "description": "UID of the verifier" },
+        "status": { "type": "string", "enum": ["verified", "flagged", "resolved"], "description": "Action taken" },
+        "notes": { "type": "string", "description": "Verification rationale or sensor notes" },
+        "timestamp": { "type": "string", "description": "ISO timestamp of verification" }
+      },
+      "required": ["hazardId", "verifiedBy", "status", "timestamp"]
+    },
+    "SavedRoute": {
+      "title": "SavedRoute",
+      "description": "User saved safe walking route",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique route ID" },
+        "userId": { "type": "string", "description": "UID of user who saved the route" },
+        "originName": { "type": "string", "description": "Origin landmark or address" },
+        "destName": { "type": "string", "description": "Destination landmark or address" },
+        "safetyScore": { "type": "number", "description": "Computed safety score 0-100" },
+        "distanceKm": { "type": "number", "description": "Distance in kilometers" },
+        "savedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "originName", "destName", "safetyScore", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User account profile with role"
+    },
+    "/hazards/{hazardId}": {
+      "schema": { "$ref": "#/entities/Hazard" },
+      "description": "Active community, weather, and IoT safety hazards"
+    },
+    "/hazards/{hazardId}/verifications/{verificationId}": {
+      "schema": { "$ref": "#/entities/Verification" },
+      "description": "Verification audit trail for hazards"
+    },
+    "/savedRoutes/{routeId}": {
+      "schema": { "$ref": "#/entities/SavedRoute" },
+      "description": "Personal saved routes per user"
+    }
+  }
+}

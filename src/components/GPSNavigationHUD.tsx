@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Navigation, 
   ArrowUp, 
@@ -15,9 +15,11 @@ import {
   Clock, 
   MapPin, 
   Crosshair, 
-  Footprints,
-  Flame,
-  PlusCircle
+  Footprints, 
+  Flame, 
+  PlusCircle, 
+  Timer, 
+  Gauge 
 } from 'lucide-react';
 import { SafeRoutePlan } from '../types/saferoute';
 import { soundFx } from '../utils/sound';
@@ -43,9 +45,72 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
   onToggleVoice,
   speedKmh = 4.8,
 }) => {
+  // Constant average walking speed state (defaults to speedKmh or 4.8 km/h)
+  const [walkingPace, setWalkingPace] = useState<number>(speedKmh || 4.8);
+
   const currentStep = route.waypoints[currentStepIndex] || route.waypoints[route.waypoints.length - 1];
   const nextStep = route.waypoints[currentStepIndex + 1];
   const isLastStep = currentStepIndex >= route.waypoints.length - 1;
+
+  // Haversine geodesic distance helper between coordinates in kilometers
+  const getHaversineDistanceKm = (coord1: [number, number], coord2: [number, number]): number => {
+    const [lat1, lon1] = coord1;
+    const [lat2, lon2] = coord2;
+    const R = 6371; // Earth's mean radius in km
+    const toRad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * toRad;
+    const dLon = (lon2 - lon1) * toRad;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // 1. Calculate precise distance remaining based on route coordinates
+  const coords = route.coordinates || [];
+  const totalCoordinates = Math.max(1, coords.length);
+  const isArrived = currentStepIndex >= totalCoordinates - 1;
+
+  // Total geodesic distance across all coordinates
+  let totalGeodesicKm = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    totalGeodesicKm += getHaversineDistanceKm(coords[i], coords[i + 1]);
+  }
+
+  // Geodesic distance remaining from current step coordinate to destination
+  let remainingGeodesicKm = 0;
+  if (!isArrived) {
+    for (let i = currentStepIndex; i < coords.length - 1; i++) {
+      remainingGeodesicKm += getHaversineDistanceKm(coords[i], coords[i + 1]);
+    }
+  }
+
+  // Scaled remaining distance to match route.distanceKm if provided
+  const distanceScale = route.distanceKm && totalGeodesicKm > 0 ? route.distanceKm / totalGeodesicKm : 1;
+  const distanceRemainingKm = isArrived ? 0 : Math.max(0, remainingGeodesicKm * distanceScale);
+
+  // 2. Constant Average Walking Speed (km/h)
+  const averageWalkingSpeedKmh = walkingPace || 4.8;
+
+  // 3. ETA Calculator: Time (Hours) = Distance Remaining (km) / Speed (km/h)
+  // Time (Minutes) = Hours * 60
+  const hoursRemaining = distanceRemainingKm / averageWalkingSpeedKmh;
+  const exactMinutesRemaining = hoursRemaining * 60;
+  const remainingMinutes = isArrived ? 0 : Math.max(1, Math.round(exactMinutesRemaining));
+
+  // Compute Clock Arrival Time (ETA)
+  const etaDate = new Date(Date.now() + exactMinutesRemaining * 60 * 1000);
+  const etaString = isArrived
+    ? 'Arrived'
+    : etaDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  // Format remaining distance nicely (e.g. "850 m" or "1.1 km")
+  const formattedRemainingDistance = isArrived
+    ? '0 m'
+    : distanceRemainingKm < 1
+    ? `${Math.round(distanceRemainingKm * 1000)} m`
+    : `${distanceRemainingKm.toFixed(1)} km`;
 
   // Choose appropriate turn icon
   const getTurnIcon = (instruction: string) => {
@@ -56,14 +121,11 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
     return <ArrowUp size={36} className="text-white" />;
   };
 
-  // Remaining calculation estimates
-  const remainingSteps = Math.max(1, route.waypoints.length - currentStepIndex);
-  const remainingMinutes = Math.max(1, Math.round((route.durationMinutes * remainingSteps) / route.waypoints.length));
-  const remainingKm = Math.max(0.1, ((route.distanceKm * remainingSteps) / route.waypoints.length)).toFixed(1);
-
-  // Compute ETA clock time (e.g. 7:42 PM)
-  const etaDate = new Date(Date.now() + remainingMinutes * 60000);
-  const etaString = etaDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // Journey completed percentage calculation based on current step index vs total route coordinates
+  const currentCoordinateNumber = Math.min(totalCoordinates, currentStepIndex + 1);
+  const progressPercent = totalCoordinates > 1
+    ? Math.min(100, Math.max(0, Math.round((currentStepIndex / (totalCoordinates - 1)) * 100)))
+    : 100;
 
   return (
     <>
@@ -82,7 +144,7 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
               <div className="flex items-center gap-1.5 text-emerald-100 text-[11px] font-bold uppercase tracking-wider">
                 <span>IN {isLastStep ? '50 METERS' : `${120 + currentStepIndex * 40} METERS`}</span>
                 <span className="text-emerald-300">&bull;</span>
-                <span className="text-emerald-200">SAFETY SHIELD ACTIVE</span>
+                <span className="text-emerald-200 font-bold">ETA {etaString} ({formattedRemainingDistance})</span>
               </div>
 
               <h2 className="text-base sm:text-lg font-black leading-tight text-white mt-0.5 truncate">
@@ -129,6 +191,25 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
               <span className="truncate">{nextStep.instruction}</span>
             </div>
           )}
+
+          {/* Top Card Synchronized Journey Progress Line */}
+          <div className="mt-3 pt-2 border-t border-emerald-500/30">
+            <div className="flex items-center justify-between text-[10px] text-emerald-100 font-mono-telemetry mb-1">
+              <span className="flex items-center gap-1 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-pulse" />
+                ROUTE PROGRESS
+              </span>
+              <span className="font-extrabold text-white text-[11px]">
+                {progressPercent}%
+              </span>
+            </div>
+            <div className="w-full bg-emerald-950/60 h-1.5 rounded-full overflow-hidden p-0">
+              <div 
+                className="bg-gradient-to-r from-emerald-200 via-teal-200 to-white h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                style={{ width: `${Math.max(2, progressPercent)}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -173,7 +254,7 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
               </span>
               <span className="text-slate-500 font-bold mx-1">&bull;</span>
               <span className="text-sm font-bold text-slate-300">
-                {remainingKm} km
+                {formattedRemainingDistance}
               </span>
               <span className="text-slate-500 font-bold mx-1">&bull;</span>
               <span className="text-sm font-semibold text-slate-400">
@@ -194,24 +275,79 @@ export const GPSNavigationHUD: React.FC<GPSNavigationHUDProps> = ({
             </button>
           </div>
 
-          {/* Progress Bar & Walking Speed */}
-          <div>
-            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${Math.min(100, ((currentStepIndex + 1) / route.waypoints.length) * 100)}%` }}
-              />
+          {/* Visual Journey Progress Bar (Percentage based on current step index vs total route coordinates) */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between text-xs font-mono-telemetry">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-slate-300 font-bold">Journey Progress:</span>
+                <span className="text-emerald-400 font-black text-sm tracking-tight">
+                  {progressPercent}%
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Point <strong className="text-white">{currentCoordinateNumber}</strong> of <strong className="text-white">{totalCoordinates}</strong> coordinates
+              </span>
             </div>
 
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-400 font-mono-telemetry">
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <Footprints size={14} className="text-cyan-400" />
-                Walking Speed: <strong className="text-white">{speedKmh} km/h</strong>
-              </span>
+            <div className="w-full bg-slate-800/90 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/80 shadow-inner relative">
+              <div 
+                className="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(16,185,129,0.5)] relative"
+                style={{ width: `${Math.max(3, progressPercent)}%` }}
+              >
+                {/* Shiny leading edge highlight */}
+                {progressPercent > 0 && progressPercent < 100 && (
+                  <div className="absolute right-0 top-0 bottom-0 w-2.5 bg-white/80 rounded-full blur-[1px]" />
+                )}
+              </div>
+            </div>
 
-              <span className="text-emerald-400 font-bold">
-                Safety Score: {route.safetyScore}/100
-              </span>
+            {/* ETA Calculator Specs: Distance Remaining & Average Walking Speed */}
+            <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-1.5 text-xs text-slate-400 font-mono-telemetry">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-300">
+                  <Footprints size={14} className="text-cyan-400 shrink-0" />
+                  <span>Walking Speed:</span>
+                  <strong className="text-white">{averageWalkingSpeedKmh} km/h</strong>
+                  <span className="text-[10px] text-slate-500 font-normal">(Constant Avg)</span>
+                </span>
+
+                <span className="text-emerald-400 font-bold">
+                  Safety: {route.safetyScore}/100
+                </span>
+              </div>
+
+              {/* Speed Pace Presets & Calculation Breakdown */}
+              <div className="flex items-center justify-between text-[11px] pt-0.5">
+                <span className="text-slate-400 flex items-center gap-1 text-[10px]">
+                  <Timer size={12} className="text-emerald-400 shrink-0" />
+                  <span>ETA = {formattedRemainingDistance} &divide; {averageWalkingSpeedKmh} km/h</span>
+                </span>
+
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'Casual', speed: 4.0 },
+                    { label: 'Avg', speed: 4.8 },
+                    { label: 'Brisk', speed: 5.4 },
+                  ].map((pace) => (
+                    <button
+                      key={pace.label}
+                      onClick={() => {
+                        soundFx.playClick();
+                        setWalkingPace(pace.speed);
+                      }}
+                      title={`Set constant walking speed to ${pace.speed} km/h`}
+                      className={`px-1.5 py-0.5 rounded text-[10px] border transition-all cursor-pointer ${
+                        walkingPace === pace.speed
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/60 font-bold shadow-sm'
+                          : 'bg-slate-800/80 text-slate-400 border-slate-700/80 hover:text-slate-200'
+                      }`}
+                    >
+                      {pace.label} ({pace.speed})
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

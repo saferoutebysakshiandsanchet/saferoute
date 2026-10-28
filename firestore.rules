@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'saferoutetyproject@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.role in ['admin', 'citizen', 'responder'];
+    }
+
+    function isValidHazard(data) {
+      return data.keys().hasAll(['id', 'type', 'severity', 'title', 'lat', 'lng', 'city', 'reportedBy', 'reportedAt']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.type in ['lighting', 'waterlogging', 'dark_alley', 'pothole', 'construction', 'unsafe_crowd', 'weather_alert'] &&
+             data.severity in ['low', 'medium', 'high', 'critical'] &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 120 &&
+             data.lat is number && data.lng is number &&
+             data.city is string && data.city.size() <= 64 &&
+             data.reportedBy is string && data.reportedBy.size() <= 128 &&
+             data.reportedAt is string && data.reportedAt.size() <= 64;
+    }
+
+    function isValidVerification(data) {
+      return data.keys().hasAll(['hazardId', 'verifiedBy', 'status', 'timestamp']) &&
+             data.hazardId is string &&
+             data.verifiedBy is string &&
+             data.status in ['verified', 'flagged', 'resolved'] &&
+             data.timestamp is string;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isAuthenticated();
+      allow list: if isAdmin();
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Hazards Collection (Publicly visible for safety navigation)
+    match /hazards/{hazardId} {
+      allow read: if true;
+      allow create: if (isAuthenticated() && (request.resource.data.reportedBy == request.auth.uid || isAdmin())) && isValidHazard(request.resource.data);
+      allow update: if isAdmin() || (
+        isAuthenticated() && (
+          // Allow author to update
+          (resource.data.reportedBy == request.auth.uid && isValidHazard(request.resource.data)) ||
+          // Allow community upvote
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])
+        )
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.reportedBy == request.auth.uid);
+
+      // Verifications Subcollection
+      match /verifications/{verificationId} {
+        allow read: if true;
+        allow create: if (isAdmin() || isAuthenticated()) && isValidVerification(request.resource.data);
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Saved Routes Collection
+    match /savedRoutes/{routeId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+  }
+}

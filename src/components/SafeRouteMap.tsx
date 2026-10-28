@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet.heat';
-import { HazardDoc, HazardType, SafeRoutePlan } from '../types/saferoute';
+import { LocationPoint, HazardDoc, HazardType, SafeRoutePlan } from '../types/saferoute';
 import { soundFx } from '../utils/sound';
 import { 
   Flame, 
@@ -11,7 +11,9 @@ import {
   EyeOff, 
   Filter, 
   Info, 
-  AlertTriangle 
+  AlertTriangle,
+  MapPin,
+  Navigation
 } from 'lucide-react';
 
 interface SafeRouteMapProps {
@@ -28,6 +30,11 @@ interface SafeRouteMapProps {
   recenterTrigger?: number;
   showHeatmap: boolean;
   onToggleHeatmap: () => void;
+  origin?: LocationPoint;
+  destination?: LocationPoint;
+  pickingMode?: 'origin' | 'destination' | null;
+  onCancelPickingMode?: () => void;
+  isSimulatedOffline?: boolean;
 }
 
 export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
@@ -44,6 +51,11 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
   recenterTrigger = 0,
   showHeatmap,
   onToggleHeatmap,
+  origin,
+  destination,
+  pickingMode,
+  onCancelPickingMode,
+  isSimulatedOffline = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -52,6 +64,17 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
   const userMarkerRef = useRef<L.Marker | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const heatLayerRef = useRef<any>(null);
+
+  // Offline SVG Tile Pattern
+  const offlineSvgTile = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+      <rect width="256" height="256" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+      <line x1="0" y1="128" x2="256" y2="128" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="4,4"/>
+      <line x1="128" y1="0" x2="128" y2="256" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="4,4"/>
+      <text x="128" y="125" fill="#64748b" font-size="10" font-family="monospace" text-anchor="middle" font-weight="700">OFFLINE GRID</text>
+      <text x="128" y="142" fill="#06b6d4" font-size="9" font-family="sans-serif" text-anchor="middle">Safety Layer Active</text>
+    </svg>`
+  )}`;
 
   // Heatmap Controls State
   const [showPinsWithHeatmap, setShowPinsWithHeatmap] = useState(true);
@@ -64,9 +87,9 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Center near Deccan / Shivaji Nagar (Pune)
+    // Center near Deccan / Shivaji Nagar (Pune) or user position
     const map = L.map(mapContainerRef.current, {
-      center: [18.5255, 73.8510],
+      center: userPosition || [18.5255, 73.8510],
       zoom: 15,
       zoomControl: false,
     });
@@ -81,6 +104,7 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
 
     const tileLayer = L.tileLayer(tileUrl, {
       maxZoom: 19,
+      errorTileUrl: offlineSvgTile,
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(map);
 
@@ -132,6 +156,7 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
 
     const newLayer = L.tileLayer(url, {
       maxZoom: 19,
+      errorTileUrl: offlineSvgTile,
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(mapInstanceRef.current);
 
@@ -151,7 +176,7 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
   // Recenter map when triggered by user
   useEffect(() => {
     if (recenterTrigger > 0 && mapInstanceRef.current) {
-      mapInstanceRef.current.setView(userPosition, 16, { animate: true });
+      mapInstanceRef.current.flyTo(userPosition, 16, { animate: true, duration: 1.0 });
     }
   }, [recenterTrigger]);
 
@@ -249,6 +274,15 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
       } else if (hazard.type === 'Flooded / Blocked Path') {
         bgColor = '#2563eb'; // Blue
         iconSymbol = '🚧';
+      } else if (hazard.type === 'Waterlogging / Heavy Rain') {
+        bgColor = '#0284c7'; // Cyan/Blue
+        iconSymbol = '🌊';
+      } else if (hazard.type === 'Dense Fog / Low Visibility') {
+        bgColor = '#475569'; // Foggy Slate
+        iconSymbol = '🌫️';
+      } else if (hazard.type === 'Severe Weather Alert') {
+        bgColor = '#d97706'; // Amber Storm
+        iconSymbol = '⛈️';
       }
 
       const customIcon = L.divIcon({
@@ -273,6 +307,7 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
               ${iconSymbol}
             </div>
             ${hazard.source === 'IoT' ? '<span style="position: absolute; top: -3px; right: -3px; background: #06b6d4; color: #000; font-size: 8px; font-weight: 800; border-radius: 9999px; padding: 1px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.5);">IoT</span>' : ''}
+            ${hazard.source === 'Weather' ? '<span style="position: absolute; top: -3px; right: -3px; background: #38bdf8; color: #000; font-size: 8px; font-weight: 800; border-radius: 9999px; padding: 1px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.5);">WX</span>' : ''}
           </div>
         `,
         iconSize: [34, 34],
@@ -334,39 +369,97 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
     routeLayerRef.current.addLayer(outerPolyline);
     routeLayerRef.current.addLayer(innerPolyline);
 
-    // Waypoint circle markers
+    // Google Maps style Start & Destination markers + waypoints
     latLngs.forEach((coord, idx) => {
       const isStart = idx === 0;
       const isEnd = idx === latLngs.length - 1;
 
-      const wpIcon = L.divIcon({
-        className: 'route-wp-icon',
-        html: `
-          <div style="
-            width: ${isStart || isEnd ? '20px' : '14px'}; 
-            height: ${isStart || isEnd ? '20px' : '14px'}; 
-            border-radius: 9999px; 
-            background: ${isStart ? '#10b981' : isEnd ? '#f59e0b' : '#ffffff'}; 
-            border: 2px solid #0f172a; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 9px; 
-            font-weight: 800; 
-            color: #0f172a;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          ">
-            ${isStart ? 'A' : isEnd ? 'B' : ''}
-          </div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
+      if (isStart) {
+        // Start Location Marker (Green Google Maps Origin Badge)
+        const startIcon = L.divIcon({
+          className: 'google-maps-start-marker',
+          html: `
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+              <div style="display: flex; align-items: center; gap: 3px; background: #0f172a; color: #10b981; border: 1.5px solid #10b981; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 800; font-family: sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: #10b981;"></span>
+                <span>START: ${origin?.name || 'Your Location'}</span>
+              </div>
+              <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+                <div style="position: absolute; inset: -4px; border-radius: 9999px; background: rgba(16, 185, 129, 0.4); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+                <div style="width: 16px; height: 16px; border-radius: 9999px; background: #10b981; border: 3px solid #ffffff; box-shadow: 0 0 12px #10b981;"></div>
+              </div>
+            </div>
+          `,
+          iconSize: [120, 48],
+          iconAnchor: [60, 40],
+        });
 
-      const wpMarker = L.marker(coord, { icon: wpIcon });
-      routeLayerRef.current?.addLayer(wpMarker);
+        const startMarker = L.marker(coord, { icon: startIcon, zIndexOffset: 800 });
+        startMarker.bindPopup(`<strong>Start Location</strong><br/>${origin?.name || 'Origin'}<br/><span style="font-size:10px; color:#64748b;">${origin?.address || ''}</span>`);
+        routeLayerRef.current?.addLayer(startMarker);
+      } else if (isEnd) {
+        // Destination Marker (Iconic Red Teardrop Pin)
+        const destIcon = L.divIcon({
+          className: 'google-maps-dest-marker',
+          html: `
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+              <div style="display: flex; align-items: center; gap: 3px; background: #0f172a; color: #f43f5e; border: 1.5px solid #f43f5e; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 800; font-family: sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
+                <span>DEST: ${destination?.name || 'Destination'}</span>
+              </div>
+              <svg width="28" height="36" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.6));">
+                <path d="M12 0C5.37258 0 0 5.37258 0 12C0 19.5 12 32 12 32C12 32 24 19.5 24 12C24 5.37258 18.6274 0 12 0Z" fill="#ef4444"/>
+                <circle cx="12" cy="11" r="5" fill="#ffffff"/>
+              </svg>
+            </div>
+          `,
+          iconSize: [130, 60],
+          iconAnchor: [65, 58],
+        });
+
+        const destMarker = L.marker(coord, { icon: destIcon, zIndexOffset: 900 });
+        destMarker.bindPopup(`<strong>Destination</strong><br/>${destination?.name || 'Destination'}<br/><span style="font-size:10px; color:#64748b;">${destination?.address || ''}</span>`);
+        routeLayerRef.current?.addLayer(destMarker);
+      } else {
+        // Intermediate Waypoint Bullet
+        const wpIcon = L.divIcon({
+          className: 'route-wp-icon',
+          html: `
+            <div style="
+              width: 14px; 
+              height: 14px; 
+              border-radius: 9999px; 
+              background: #ffffff; 
+              border: 2px solid #0f172a; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              font-size: 8px; 
+              font-weight: 800; 
+              color: #0f172a;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            ">
+              ${idx}
+            </div>
+          `,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+
+        const wpMarker = L.marker(coord, { icon: wpIcon });
+        routeLayerRef.current?.addLayer(wpMarker);
+      }
     });
-  }, [activeRoute]);
+
+    // Auto fit map view to entire route if not in active navigation
+    if (!isNavigating && latLngs.length > 1) {
+      try {
+        const bounds = L.latLngBounds(latLngs);
+        mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+  }, [activeRoute, origin, destination, isNavigating]);
 
   const activePointsCount = hazards.filter((h) => {
     const statusMatch = h.status === 'Verified' || (showPendingInMap && h.status === 'Pending');
@@ -378,6 +471,28 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
     <div className="relative w-full h-full">
       {/* Leaflet container */}
       <div ref={mapContainerRef} className="w-full h-full z-0 select-none" />
+
+      {/* Google Maps Map Picking Mode Overlay Banner */}
+      {pickingMode && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-300 animate-bounce pointer-events-auto">
+          <MapPin size={18} className="fill-current text-slate-950" />
+          <span className="text-xs uppercase tracking-wider font-extrabold font-mono-telemetry">
+            TAP ON MAP TO SET {pickingMode === 'origin' ? 'START LOCATION' : 'DESTINATION'}
+          </span>
+          {onCancelPickingMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                soundFx.playClick();
+                onCancelPickingMode();
+              }}
+              className="px-2 py-0.5 rounded-full bg-slate-950 text-white text-[10px] font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Top Left Watermark */}
       <div className="absolute top-3 left-3 z-10 pointer-events-none flex flex-col gap-1.5">

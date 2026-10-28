@@ -4,13 +4,16 @@ export type HazardType =
   | 'Stray Animal Cluster' 
   | 'Cellular Dead Zone' 
   | 'Harassment Hotspot' 
-  | 'Flooded / Blocked Path';
+  | 'Flooded / Blocked Path'
+  | 'Severe Weather Alert'
+  | 'Dense Fog / Low Visibility'
+  | 'Waterlogging / Heavy Rain';
 
 export type HazardSeverity = 'High' | 'Medium' | 'Low';
 
 export type HazardStatus = 'Pending' | 'Verified' | 'Rejected';
 
-export type HazardSource = 'User' | 'IoT';
+export type HazardSource = 'User' | 'IoT' | 'Weather';
 
 export interface GeoPoint {
   type: 'Point';
@@ -95,3 +98,16 @@ export interface SafeRoutePlan {
     hazardWarning?: string;
   }[];
 }
+
+export interface LocationPoint {
+  id: string;
+  name: string;
+  category: 'current' | 'transit' | 'campus' | 'commercial' | 'landmark' | 'custom';
+  address: string;
+  coordinates: [number, number]; // [lat, lng]
+  isSafeHaven?: boolean;
+  city?: string;
+  state?: string;
+}
+
+

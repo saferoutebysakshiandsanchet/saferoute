@@ -43,10 +43,12 @@ export const ReportHazardModal: React.FC<ReportHazardModalProps> = ({
   const hazardTypes: { type: HazardType; label: string; icon: React.FC<{ size: number; className?: string }>; desc: string }[] = [
     { type: 'Unlit Street', label: 'Unlit Street / Broken Lights', icon: Lightbulb, desc: 'Fused lamps, blacked-out alleys, poor lux levels' },
     { type: 'Isolated Stretch', label: 'Isolated Stretch', icon: EyeOff, desc: 'No foot traffic, closed warehouses, desolate turns' },
+    { type: 'Waterlogging / Heavy Rain', label: 'Waterlogging / Flooding', icon: AlertTriangle, desc: 'Deep standing water, submerged footpaths, open drain risk' },
+    { type: 'Dense Fog / Low Visibility', label: 'Dense Fog / Low Visibility', icon: EyeOff, desc: 'Thick fog or smog, severe pedestrian collision risk' },
     { type: 'Stray Animal Cluster', label: 'Stray Animal Cluster', icon: Dog, desc: 'Territorial packs, aggressive street dogs, bite hazards' },
     { type: 'Cellular Dead Zone', label: 'Cellular Dead Zone', icon: Radio, desc: 'Zero mobile signal, call drops, SOS failure zones' },
     { type: 'Harassment Hotspot', label: 'Harassment Hotspot', icon: ShieldAlert, desc: 'Loitering groups, stalking, catcalling corners' },
-    { type: 'Flooded / Blocked Path', label: 'Flooded / Blocked Path', icon: AlertTriangle, desc: 'Open construction pits, waterlogging, broken sidewalk' },
+    { type: 'Flooded / Blocked Path', label: 'Flooded / Blocked Path', icon: AlertTriangle, desc: 'Open construction pits, broken sidewalk' },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
