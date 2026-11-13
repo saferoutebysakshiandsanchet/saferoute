@@ -31,7 +31,7 @@ interface SafeRouteMapProps {
   showHeatmap: boolean;
   onToggleHeatmap: () => void;
   origin?: LocationPoint;
-  destination?: LocationPoint;
+  destination?: LocationPoint | null;
   pickingMode?: 'origin' | 'destination' | null;
   onCancelPickingMode?: () => void;
   isSimulatedOffline?: boolean;
@@ -451,7 +451,7 @@ export const SafeRouteMap: React.FC<SafeRouteMapProps> = ({
     });
 
     // Auto fit map view to entire route if not in active navigation
-    if (!isNavigating && latLngs.length > 1) {
+    if (!isNavigating && latLngs.length > 1 && mapInstanceRef.current) {
       try {
         const bounds = L.latLngBounds(latLngs);
         mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });

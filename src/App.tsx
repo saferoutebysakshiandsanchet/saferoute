@@ -79,17 +79,20 @@ export default function App() {
 
   // Google Maps Style Start Location & Destination State (Nationwide)
   const [originLocation, setOriginLocation] = useState<LocationPoint>(PRESET_LOCATIONS[0]); // Your Current Location
-  const [destinationLocation, setDestinationLocation] = useState<LocationPoint>(PRESET_LOCATIONS[1]); // Default Verified Safe Haven
+  const [destinationLocation, setDestinationLocation] = useState<LocationPoint | null>(null); // No default destination
   const [selectedRouteType, setSelectedRouteType] = useState<'safe' | 'shortest'>('safe');
   const [pickingMode, setPickingMode] = useState<'origin' | 'destination' | null>(null);
 
   // Dynamically compute SafeRoute and ShortestRoute based on chosen Start & Destination + Hazard layer
   const routePlans = useMemo(() => {
+    if (!destinationLocation) {
+      return { safeRoute: null, shortestRoute: null };
+    }
     return generateRoutes(originLocation, destinationLocation, combinedHazards);
   }, [originLocation, destinationLocation, combinedHazards]);
 
   // Navigation & GPS State (Customer App)
-  const [activeRoute, setActiveRoute] = useState<SafeRoutePlan | null>(INITIAL_SAFE_ROUTE);
+  const [activeRoute, setActiveRoute] = useState<SafeRoutePlan | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [selectedHazard, setSelectedHazard] = useState<HazardDoc | null>(null);
@@ -97,9 +100,13 @@ export default function App() {
   // Keep activeRoute synced when not navigating
   useEffect(() => {
     if (!isNavigating) {
-      setActiveRoute(selectedRouteType === 'safe' ? routePlans.safeRoute : routePlans.shortestRoute);
+      if (destinationLocation && routePlans.safeRoute && routePlans.shortestRoute) {
+        setActiveRoute(selectedRouteType === 'safe' ? routePlans.safeRoute : routePlans.shortestRoute);
+      } else {
+        setActiveRoute(null);
+      }
     }
-  }, [routePlans, selectedRouteType, isNavigating]);
+  }, [routePlans, selectedRouteType, isNavigating, destinationLocation]);
 
   // GPS User Position & Recenter Tracker (Defaults to national center or live device GPS)
   const [userPosition, setUserPosition] = useState<[number, number]>([28.6139, 77.2090]); // Delhi Capital Grid default
@@ -154,20 +161,6 @@ export default function App() {
             address: `${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E (±${accuracy}m)`,
             coordinates: realCoords,
             isSafeHaven: false,
-          });
-
-          // Auto-place local safe destination ~1.2 km away
-          const localDest: [number, number] = [
-            parseFloat((lat + 0.009).toFixed(4)),
-            parseFloat((lng + 0.008).toFixed(4)),
-          ];
-          setDestinationLocation({
-            id: `dest-local-${Date.now().toString().slice(-4)}`,
-            name: 'Nearby Safe Haven Corridor',
-            category: 'campus',
-            address: `Well-lit safety corridor near your position (${localDest[0]}°N, ${localDest[1]}°E)`,
-            coordinates: localDest,
-            isSafeHaven: true,
           });
 
           // Ensure regional hazards exist around user's real location
@@ -299,6 +292,7 @@ export default function App() {
   };
 
   const handleSwapLocations = () => {
+    if (!destinationLocation) return;
     const prevOrigin = originLocation;
     const prevDest = destinationLocation;
     setOriginLocation(prevDest);
@@ -320,6 +314,7 @@ export default function App() {
       const allIndiaCoords: [number, number] = [20.5937, 78.9629];
       setUserPosition(allIndiaCoords);
       setRecenterTrigger((c) => c + 1);
+      setDestinationLocation(null);
       setGpsToast({
         message: '🇮🇳 Pan-India Safety Grid',
         sub: 'Showing all national transit safety corridors',
@@ -341,20 +336,9 @@ export default function App() {
       state: city.state,
     };
 
-    const destLoc = cityLocations[1] || {
-      id: `city-dest-${city.id}`,
-      name: `${city.name} Safe Haven & Campus`,
-      category: 'campus' as const,
-      address: `High-illumination corridor, ${city.name}`,
-      coordinates: [city.coordinates[0] + 0.012, city.coordinates[1] + 0.010],
-      isSafeHaven: true,
-      city: city.id,
-      state: city.state,
-    };
-
     setUserPosition(startLoc.coordinates);
     setOriginLocation(startLoc);
-    setDestinationLocation(destLoc);
+    setDestinationLocation(null); // No pre-selected destination
     setHazards((prev) => ensureRegionalHazards(city.coordinates[0], city.coordinates[1], prev));
     setRecenterTrigger((c) => c + 1);
 
@@ -405,23 +389,6 @@ export default function App() {
           // Smoothly pan map to user's real GPS position
           setRecenterTrigger((c) => c + 1);
           soundFx.playWaypointPing();
-
-          // If current destination is very far (> 35 km away), auto-set a local safe destination ~1.2 km away
-          const distToDest = calculateDistanceKm(realCoords, destinationLocation.coordinates);
-          if (distToDest > 35) {
-            const localDestCoords: [number, number] = [
-              parseFloat((lat + 0.009).toFixed(4)), 
-              parseFloat((lng + 0.008).toFixed(4))
-            ];
-            setDestinationLocation({
-              id: `loc-local-hub-${Date.now().toString().slice(-4)}`,
-              name: 'Nearby Safe Haven & Verified Transit Hub',
-              category: 'campus',
-              address: `Well-lit safety corridor near your position (${localDestCoords[0]}°N, ${localDestCoords[1]}°E)`,
-              coordinates: localDestCoords,
-              isSafeHaven: true,
-            });
-          }
 
           // Ensure regional hazards exist around user's GPS position
           setHazards((prev) => ensureRegionalHazards(lat, lng, prev));
@@ -791,6 +758,17 @@ export default function App() {
   // Start GPS Navigation
   const handleStartGPS = () => {
     const route = activeRoute || routePlans.safeRoute;
+    if (!route || !destinationLocation) {
+      soundFx.playClick();
+      setGpsToast({
+        message: '📍 Select a Destination First',
+        sub: 'Search any address or tap a landmark across India',
+        type: 'warn',
+      });
+      setTimeout(() => setGpsToast(null), 3500);
+      return;
+    }
+
     setActiveRoute(route);
     setIsNavigating(true);
     setCurrentStepIndex(0);
@@ -799,7 +777,7 @@ export default function App() {
 
     if (voiceEnabled) {
       voiceGuidance.speak(
-        `Starting GPS navigation from ${originLocation.name} to ${destinationLocation.name} along ${route.name}. In 100 meters, ${route.waypoints[0].instruction}`
+        `Starting GPS navigation from ${originLocation.name} to ${destinationLocation.name} along ${route.name}. In 100 meters, ${route.waypoints[0]?.instruction || 'proceed along well-lit route'}`
       );
     }
   };
@@ -1028,7 +1006,9 @@ export default function App() {
                   userPosition={userPosition}
                   onAvoidInRoute={() => {
                     soundFx.playClick();
-                    setActiveRoute(INITIAL_SAFE_ROUTE);
+                    if (routePlans.safeRoute) {
+                      setActiveRoute(routePlans.safeRoute);
+                    }
                     setSelectedHazard(null);
                   }}
                 />

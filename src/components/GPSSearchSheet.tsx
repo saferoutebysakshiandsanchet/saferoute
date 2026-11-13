@@ -31,14 +31,14 @@ import { soundFx } from '../utils/sound';
 
 interface GPSSearchSheetProps {
   origin: LocationPoint;
-  destination: LocationPoint;
+  destination: LocationPoint | null;
   onSelectOrigin: (loc: LocationPoint) => void;
   onSelectDestination: (loc: LocationPoint) => void;
   onSwapLocations: () => void;
   onUseCurrentLocation: () => void;
   onPickOnMap: (target: 'origin' | 'destination') => void;
-  safeRoute: SafeRoutePlan;
-  shortestRoute: SafeRoutePlan;
+  safeRoute: SafeRoutePlan | null;
+  shortestRoute: SafeRoutePlan | null;
   activeRoute: SafeRoutePlan | null;
   onSelectRoute: (route: SafeRoutePlan) => void;
   onStartGPS: () => void;
@@ -76,7 +76,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
 }) => {
   // Direct text input states for Start & Destination
   const [startQuery, setStartQuery] = useState(origin.name);
-  const [destQuery, setDestQuery] = useState(destination.name);
+  const [destQuery, setDestQuery] = useState(destination ? destination.name : '');
   
   // Track which input currently has focus: 'origin' | 'destination' | null
   const [activeField, setActiveField] = useState<'origin' | 'destination' | null>(null);
@@ -101,7 +101,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
 
   useEffect(() => {
     if (activeField !== 'destination') {
-      setDestQuery(destination.name);
+      setDestQuery(destination ? destination.name : '');
     }
   }, [destination, activeField]);
 
@@ -119,7 +119,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
   }, []);
 
   const currentRoute = activeRoute || safeRoute;
-  const isSafeSelected = currentRoute.id === 'safe';
+  const isSafeSelected = currentRoute ? currentRoute.id === 'safe' : true;
 
   // Active search query based on which input has focus
   const currentQuery = activeField === 'origin' ? startQuery : destQuery;
@@ -427,7 +427,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
                       <X size={13} />
                     </button>
                   )}
-                  {destination.isSafeHaven && activeField !== 'destination' && (
+                  {destination?.isSafeHaven && activeField !== 'destination' && (
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-mono-telemetry font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                       SAFE
                     </span>
@@ -470,7 +470,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
             {popularPresets.map((preset) => {
               const target = PRESET_LOCATIONS.find((l) => l.id === preset.id);
               if (!target) return null;
-              const isCurrentDest = destination.id === target.id;
+              const isCurrentDest = destination?.id === target.id;
 
               return (
                 <button
@@ -517,39 +517,46 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
 
           {/* Quick Route Mode & Heatmap Toggles Bar */}
           <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              {/* SafeRoute toggle */}
-              <button
-                onClick={() => {
-                  soundFx.playClick();
-                  onSelectRoute(safeRoute);
-                }}
-                className={`px-3 py-1 rounded-full font-medium whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isSafeSelected
-                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.4)]'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <ShieldCheck size={13} />
-                <span>SafeRoute ({safeRoute.safetyScore}%)</span>
-              </button>
+            {safeRoute && shortestRoute ? (
+              <div className="flex items-center gap-1.5">
+                {/* SafeRoute toggle */}
+                <button
+                  onClick={() => {
+                    soundFx.playClick();
+                    onSelectRoute(safeRoute);
+                  }}
+                  className={`px-3 py-1 rounded-full font-medium whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isSafeSelected
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  <ShieldCheck size={13} />
+                  <span>SafeRoute ({safeRoute.safetyScore}%)</span>
+                </button>
 
-              {/* Shortest Route toggle */}
-              <button
-                onClick={() => {
-                  soundFx.playClick();
-                  onSelectRoute(shortestRoute);
-                }}
-                className={`px-3 py-1 rounded-full font-medium whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
-                  !isSafeSelected
-                    ? 'bg-rose-500 text-white font-bold shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <Clock size={13} />
-                <span>Shortest ({shortestRoute.durationMinutes}m)</span>
-              </button>
-            </div>
+                {/* Shortest Route toggle */}
+                <button
+                  onClick={() => {
+                    soundFx.playClick();
+                    onSelectRoute(shortestRoute);
+                  }}
+                  className={`px-3 py-1 rounded-full font-medium whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
+                    !isSafeSelected
+                      ? 'bg-rose-500 text-white font-bold shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  <Clock size={13} />
+                  <span>Shortest ({shortestRoute.durationMinutes}m)</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                <span>Select destination to preview route options</span>
+              </div>
+            )}
 
             {/* Heatmap Layer toggle */}
             <button
@@ -769,7 +776,7 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
                     const isSelected =
                       activeField === 'origin'
                         ? origin.id === loc.id
-                        : destination.id === loc.id;
+                        : destination?.id === loc.id;
                     const distFromUser = calculateDistanceKm(userPosition, loc.coordinates);
 
                     return (
@@ -880,131 +887,209 @@ export const GPSSearchSheet: React.FC<GPSSearchSheetProps> = ({
       {/* 4. BOTTOM DESTINATION & START GPS SHEET (Google Maps style) */}
       <div className="absolute bottom-3 left-3 right-3 md:left-6 md:right-auto md:w-[500px] z-20 pointer-events-auto">
         <div className="bg-[#0f172a]/95 backdrop-blur-xl rounded-2xl p-4 shadow-2xl border border-slate-700/80 text-white flex flex-col gap-3">
-          {/* Destination Header */}
-          <div className="flex items-start justify-between">
-            <div className="overflow-hidden pr-2">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-white truncate">
-                  {destination.name}
-                </h3>
-                {destination.isSafeHaven && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
-                    VERIFIED SAFE
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5 truncate">
-                {destination.address} &bull; {currentRoute.distanceKm} km away
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowStepDetails((s) => !s)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg shrink-0 cursor-pointer"
-              title="Preview Steps"
-            >
-              {showStepDetails ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-            </button>
-          </div>
-
-          {/* Route Option Cards (Side by Side) */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Option 1: SafeRoute */}
-            <div
-              onClick={() => {
-                soundFx.playClick();
-                onSelectRoute(safeRoute);
-              }}
-              className={`p-3 rounded-xl cursor-pointer border transition-all ${
-                isSafeSelected
-                  ? 'bg-emerald-500/15 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
-                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                  <ShieldCheck size={13} />
-                  SafeRoute
-                </span>
-                <span className="text-xs font-black text-white">
-                  {safeRoute.durationMinutes} min
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                {safeRoute.distanceKm} km &bull; 0 Hazards
-              </div>
-              <div className="mt-1.5 text-[10px] font-bold text-emerald-300 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-800/60 inline-block">
-                Score: {safeRoute.safetyScore}/100
-              </div>
-            </div>
-
-            {/* Option 2: Shortest */}
-            <div
-              onClick={() => {
-                soundFx.playClick();
-                onSelectRoute(shortestRoute);
-              }}
-              className={`p-3 rounded-xl cursor-pointer border transition-all ${
-                !isSafeSelected
-                  ? 'bg-rose-500/15 border-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
-                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
-                  <AlertTriangle size={13} />
-                  Shortest
-                </span>
-                <span className="text-xs font-black text-white">
-                  {shortestRoute.durationMinutes} min
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                {shortestRoute.distanceKm} km &bull; {shortestRoute.safetyScore < 60 ? 'Hazard Risk' : 'Direct'}
-              </div>
-              <div className="mt-1.5 text-[10px] font-bold text-rose-300 bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-800/60 inline-block">
-                Score: {shortestRoute.safetyScore}/100
-              </div>
-            </div>
-          </div>
-
-          {/* Expandable Step-by-Step Preview */}
-          {showStepDetails && (
-            <div className="max-h-48 overflow-y-auto space-y-2 py-2 border-t border-slate-800 text-xs no-scrollbar">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">
-                ROUTE DIRECTIONS PREVIEW
-              </span>
-              {currentRoute.waypoints.map((wp, idx) => (
-                <div key={idx} className="flex items-start gap-2 text-slate-300">
-                  <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <div className="font-semibold text-white">{wp.instruction}</div>
-                    <div className="text-[11px] text-slate-400">{wp.street}</div>
-                    {wp.safeNote && (
-                      <div className="text-[10px] text-emerald-400 mt-0.5">✓ {wp.safeNote}</div>
-                    )}
-                    {wp.hazardWarning && (
-                      <div className="text-[10px] text-rose-400 mt-0.5">{wp.hazardWarning}</div>
+          {destination && safeRoute && shortestRoute && currentRoute ? (
+            <>
+              {/* Destination Header */}
+              <div className="flex items-start justify-between">
+                <div className="overflow-hidden pr-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white truncate">
+                      {destination.name}
+                    </h3>
+                    {destination.isSafeHaven && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
+                        VERIFIED SAFE
+                      </span>
                     )}
                   </div>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    {destination.address} &bull; {currentRoute.distanceKm} km away
+                  </p>
                 </div>
-              ))}
+
+                <button
+                  onClick={() => setShowStepDetails((s) => !s)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg shrink-0 cursor-pointer"
+                  title="Preview Steps"
+                >
+                  {showStepDetails ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
+              </div>
+
+              {/* Route Option Cards (Side by Side) */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Option 1: SafeRoute */}
+                <div
+                  onClick={() => {
+                    soundFx.playClick();
+                    onSelectRoute(safeRoute);
+                  }}
+                  className={`p-3 rounded-xl cursor-pointer border transition-all ${
+                    isSafeSelected
+                      ? 'bg-emerald-500/15 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck size={13} />
+                      SafeRoute
+                    </span>
+                    <span className="text-xs font-black text-white">
+                      {safeRoute.durationMinutes} min
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {safeRoute.distanceKm} km &bull; 0 Hazards
+                  </div>
+                  <div className="mt-1.5 text-[10px] font-bold text-emerald-300 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-800/60 inline-block">
+                    Score: {safeRoute.safetyScore}/100
+                  </div>
+                </div>
+
+                {/* Option 2: Shortest */}
+                <div
+                  onClick={() => {
+                    soundFx.playClick();
+                    onSelectRoute(shortestRoute);
+                  }}
+                  className={`p-3 rounded-xl cursor-pointer border transition-all ${
+                    !isSafeSelected
+                      ? 'bg-rose-500/15 border-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
+                      <AlertTriangle size={13} />
+                      Shortest
+                    </span>
+                    <span className="text-xs font-black text-white">
+                      {shortestRoute.durationMinutes} min
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {shortestRoute.distanceKm} km &bull; {shortestRoute.safetyScore < 60 ? 'Hazard Risk' : 'Direct'}
+                  </div>
+                  <div className="mt-1.5 text-[10px] font-bold text-rose-300 bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-800/60 inline-block">
+                    Score: {shortestRoute.safetyScore}/100
+                  </div>
+                </div>
+              </div>
+
+              {/* Expandable Step-by-Step Preview */}
+              {showStepDetails && (
+                <div className="max-h-48 overflow-y-auto space-y-2 py-2 border-t border-slate-800 text-xs no-scrollbar">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase">
+                    ROUTE DIRECTIONS PREVIEW
+                  </span>
+                  {currentRoute.waypoints.map((wp, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-slate-300">
+                      <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <div className="font-semibold text-white">{wp.instruction}</div>
+                        <div className="text-[11px] text-slate-400">{wp.street}</div>
+                        {wp.safeNote && (
+                          <div className="text-[10px] text-emerald-400 mt-0.5">✓ {wp.safeNote}</div>
+                        )}
+                        {wp.hazardWarning && (
+                          <div className="text-[10px] text-rose-400 mt-0.5">{wp.hazardWarning}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* BIG PROMINENT "START NAVIGATION" GPS BUTTON */}
+              <button
+                onClick={() => {
+                  soundFx.playWaypointPing();
+                  onStartGPS();
+                }}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-black text-base uppercase tracking-wider rounded-xl transition-all shadow-[0_4px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99]"
+              >
+                <Navigation size={20} className="fill-current rotate-45" />
+                <span>START NAVIGATION</span>
+              </button>
+            </>
+          ) : (
+            /* When NO destination is selected: Google Maps style Where to? Discovery */
+            <div className="flex flex-col gap-3 py-1">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
+                  <MapPin size={22} className="fill-rose-500 text-rose-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-wide">
+                    Where would you like to go?
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Search or tap any landmark across India to compute your safe, illuminated route.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick suggestions chips */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-mono-telemetry font-bold text-slate-400 uppercase flex items-center gap-1">
+                  <Sparkles size={11} className="text-cyan-400" /> Suggested Safe Destinations:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {popularPresets.slice(0, 4).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        const target = PRESET_LOCATIONS.find((l) => l.id === p.id) || {
+                          id: p.id,
+                          name: p.label,
+                          category: 'landmark' as const,
+                          address: `${p.label}, ${p.city}, India`,
+                          coordinates: [28.6315, 77.2167],
+                          isSafeHaven: true,
+                        };
+                        soundFx.playClick();
+                        onSelectDestination(target);
+                        setDestQuery(target.name);
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <MapPin size={11} className="text-rose-400" />
+                      <span>{p.label}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playClick();
+                      onPickOnMap('destination');
+                    }}
+                    className="px-2.5 py-1 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-700/60 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Crosshair size={11} className="text-indigo-400" />
+                    <span>Pick on Map</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Prompt Button to Focus Search */}
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playClick();
+                  setActiveField('destination');
+                  destInputRef.current?.focus();
+                }}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Search size={15} className="text-cyan-400" />
+                <span>Search Destination to Calculate Route</span>
+              </button>
             </div>
           )}
-
-          {/* BIG PROMINENT "START NAVIGATION" GPS BUTTON (Google Maps Green CTA) */}
-          <button
-            onClick={() => {
-              soundFx.playWaypointPing();
-              onStartGPS();
-            }}
-            className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-black text-base uppercase tracking-wider rounded-xl transition-all shadow-[0_4px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99]"
-          >
-            <Navigation size={20} className="fill-current rotate-45" />
-            <span>START NAVIGATION</span>
-          </button>
         </div>
       </div>
     </>

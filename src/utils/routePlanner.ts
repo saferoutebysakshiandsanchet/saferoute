@@ -30,9 +30,13 @@ function distancePointToSegmentKm(
  */
 export function generateRoutes(
   origin: LocationPoint,
-  destination: LocationPoint,
+  destination: LocationPoint | null,
   hazards: HazardDoc[]
-): { safeRoute: SafeRoutePlan; shortestRoute: SafeRoutePlan } {
+): { safeRoute: SafeRoutePlan | null; shortestRoute: SafeRoutePlan | null } {
+  if (!destination) {
+    return { safeRoute: null, shortestRoute: null };
+  }
+
   const [latA, lngA] = origin.coordinates;
   const [latB, lngB] = destination.coordinates;
 

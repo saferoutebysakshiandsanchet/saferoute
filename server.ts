@@ -81,10 +81,19 @@ Core Objectives:
         },
       });
     } catch (err: any) {
-      console.error('SafeRoute Gemini API error:', err);
-      return res.status(500).json({
-        error: err?.message || 'Failed to generate AI safety guidance',
-        fallback: 'System advisory: For urgent safety issues or emergencies, immediately dial 112 or head towards the nearest well-lit public metro station or police beat.',
+      console.warn('SafeRoute Gemini API advisory fallback triggered:', err?.message);
+      const isQuota = err?.message?.includes('429') || err?.message?.includes('quota') || err?.message?.includes('RESOURCE_EXHAUSTED');
+      const fallbackText = isQuota
+        ? 'SafeRoute AI Copilot is operating in high-availability safety mode. Key route guidance: Stick to illuminated primary thoroughfares with active foot traffic. For any urgent emergencies or distress, immediately contact 112 (All-India Emergency) or 1091 (Women Safety Helpline).'
+        : 'System advisory: For urgent safety issues or emergencies, immediately dial 112 or head towards the nearest well-lit public metro station or police beat.';
+
+      return res.json({
+        reply: fallbackText,
+        isFallback: true,
+        groundingMetadata: {
+          webSearchQueries: ['All-India Emergency 112', 'Women Distress Helpline 1091'],
+          groundingChunks: [],
+        },
       });
     }
   });

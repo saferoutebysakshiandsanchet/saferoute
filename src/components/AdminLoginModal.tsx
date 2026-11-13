@@ -80,18 +80,24 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </div>
 
         {/* Info notice */}
-        <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-200 flex items-start gap-2">
-          <Building size={16} className="text-indigo-400 shrink-0 mt-0.5" />
-          <span>
-            This terminal provides administrative oversight of the <strong>SafeRoute Moderation Queue</strong>, allowing verification or rejection of citizen reports and ESP32 IoT alerts.
-          </span>
+        <div className="mt-3.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-200 space-y-1.5">
+          <div className="flex items-start gap-2">
+            <Building size={16} className="text-indigo-400 shrink-0 mt-0.5" />
+            <span>
+              This terminal provides administrative oversight of the <strong>SafeRoute Moderation Queue</strong> and ESP32 IoT alerts.
+            </span>
+          </div>
+          <div className="text-[11px] text-emerald-300 font-mono bg-emerald-950/40 border border-emerald-500/30 rounded px-2 py-1 flex items-center justify-between">
+            <span>Super Admin Email:</span>
+            <strong>saferoutetyproject@gmail.com</strong>
+          </div>
         </div>
 
         {/* Credentials Form */}
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
           <div>
             <label className="block text-xs font-mono-telemetry text-slate-300 uppercase mb-1">
-              Administrator ID:
+              Administrator ID / Badge:
             </label>
             <div className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono-telemetry text-slate-300 flex items-center justify-between">
               <span>Inspector R. Deshmukh</span>
@@ -100,9 +106,18 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-mono-telemetry text-slate-300 uppercase mb-1">
-              Enter 4-Digit Security PIN:
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-mono-telemetry text-slate-300 uppercase">
+                4-Digit Security PIN:
+              </label>
+              <button
+                type="button"
+                onClick={() => setBadgePin('8402')}
+                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline cursor-pointer"
+              >
+                Auto-fill: 8402
+              </button>
+            </div>
             <div className="relative">
               <input
                 type="password"
@@ -112,7 +127,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   setBadgePin(e.target.value);
                   setError('');
                 }}
-                placeholder="Enter PIN (Default: 8402)"
+                placeholder="Enter PIN: 8402"
                 className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 font-mono-telemetry placeholder:text-slate-500"
               />
               <Lock size={16} className="absolute right-3 top-3 text-slate-500" />
@@ -126,7 +141,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
             >
               <Key size={14} />
-              <span>Unlock Admin Terminal</span>
+              <span>Unlock Admin Terminal (PIN: 8402)</span>
             </button>
 
             <button
